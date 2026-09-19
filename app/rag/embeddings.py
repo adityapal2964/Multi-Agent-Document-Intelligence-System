@@ -48,6 +48,11 @@ class HashingEmbeddings(Embeddings):
         return self._vectorise(text)
 
 
+def _using_openai_directly() -> bool:
+    """True only when we're actually talking to api.openai.com."""
+    return not config.OPENAI_BASE_URL or "openai.com" in config.OPENAI_BASE_URL
+
+
 @lru_cache(maxsize=1)
 def get_embeddings() -> Any:
     """Return the embedding model used for ingestion and retrieval."""
@@ -61,6 +66,13 @@ def get_embeddings() -> Any:
             }
             if config.OPENAI_BASE_URL:
                 kwargs["base_url"] = config.OPENAI_BASE_URL
+            if not _using_openai_directly():
+                # Non-OpenAI OpenAI-compatible servers (Ollama, vLLM, ...)
+                # generally can't handle tiktoken-tokenized input or base64
+                # responses - send raw text and ask for plain float vectors.
+                # See langchain_openai's own OpenAIEmbeddings docstring.
+                kwargs["check_embedding_ctx_length"] = False
+                kwargs["tiktoken_enabled"] = False
             return OpenAIEmbeddings(**kwargs)
         except Exception as exc:  # pragma: no cover
             print(f"[embeddings] falling back to hashing embeddings: {exc}")
@@ -69,4 +81,6 @@ def get_embeddings() -> Any:
 
 def embeddings_backend() -> str:
     """Name of the active backend - surfaced by /health."""
-    return "openai" if config.llm_enabled() else "hashing-fallback"
+    if not config.llm_enabled():
+        return "hashing-fallback"
+    return "openai" if _using_openai_directly() else "openai-compatible"
