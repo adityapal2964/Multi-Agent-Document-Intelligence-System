@@ -1,0 +1,18 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.env
+.pytest_cache/
+.mypy_cache/
+.DS_Store
+*.egg-info/
+
+# local data (keep the folders, ignore the contents)
+data/documents/*
+!data/documents/.gitkeep
+data/database/*
+!data/database/.gitkeep
+data/vectorstore/*
+!data/vectorstore/.gitkeep
