@@ -15,19 +15,27 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from app.graph.state import AgentState
 from app.llm import llm_text
 
-SYSTEM_PROMPT = """You are a strict fact-checker. Compare the ANSWER with the
-CONTEXT taken from the user's documents.
+SYSTEM_PROMPT = """You are the final fact-checking worker. Compare the ANSWER
+only with the supplied document CONTEXT and return a routing decision. Do not
+rewrite the answer and do not request retrieval merely because the answer could
+be more detailed.
 
-Decide:
-- grounded: true if every factual claim in the answer is supported by the
-  context (an honest "the documents don't cover this" also counts as grounded).
-- needs_more_context: true only if retrieving more document chunks would
-  plausibly fix the problem.
-- missing: a short phrase describing what evidence is missing (or "").
-- verdict: one sentence explaining your decision.
+Decision rules:
+- grounded=true when every material document claim is supported by CONTEXT.
+  A concise answer that honestly says the documents do not provide the answer
+  is grounded.
+- grounded=false when the answer contains an unsupported, contradicted, or
+  missing material claim.
+- needs_more_context=true only when additional document retrieval could
+  plausibly supply the missing evidence. Set it false for a wrong answer,
+  unsupported general knowledge, formatting issues, or evidence already
+  present in CONTEXT.
+- missing must be a short search-ready phrase only when more evidence is
+  needed; otherwise use "".
+- verdict must be one short sentence identifying the decisive reason.
 
-Reply with JSON only:
-{"grounded": true/false, "needs_more_context": true/false, "missing": "", "verdict": ""}"""
+Return exactly one JSON object with these types and no markdown:
+{"grounded": true, "needs_more_context": false, "missing": "", "verdict": ""}"""
 
 _WORD_RE = re.compile(r"[a-z0-9]{4,}")
 _OVERLAP_THRESHOLD = 0.35

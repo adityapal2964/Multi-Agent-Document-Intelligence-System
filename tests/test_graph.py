@@ -27,6 +27,21 @@ def test_supervisor_never_critiques_before_an_answer_exists():
     assert update["next_agent"] != "critic"
 
 
+def test_supervisor_moves_to_summarizer_after_retrieval(monkeypatch):
+    """A model must not be allowed to retrieve repeatedly before answering."""
+    monkeypatch.setattr(
+        "app.agents.supervisor.llm_text",
+        lambda *_a, **_k: '{"next": "retriever", "reason": "need evidence"}',
+    )
+    state = new_state("What is the refund policy?")
+    state["context"] = [{"text": "Refunds are processed within 7 business days."}]
+
+    update = supervisor_agent(state)
+
+    assert update["next_agent"] == "summarizer"
+    assert "context already retrieved" in update["route_reason"]
+
+
 def test_run_query_without_documents_still_answers():
     result = run_query("What is 25% of 840?")
     assert result["answer"]

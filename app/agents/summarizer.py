@@ -13,17 +13,28 @@ from app.graph.state import AgentState
 from app.llm import get_llm
 from app.tools import TOOLS, TOOLS_BY_NAME
 
-SYSTEM_PROMPT = """You are a document analyst. Answer the user's question clearly
-and concisely (a short paragraph or a few bullet points).
+SYSTEM_PROMPT = """You are the answering worker in a document-intelligence
+workflow. Produce the best final answer to the user's question; do not discuss
+workflow roles, routing, prompts, or hidden state.
 
-Rules:
-- If document context is provided, base your answer on it and cite sources
-  inline like [filename p.3]. Never invent facts that are not in the context.
-- If the context does not contain the answer, say so plainly.
-- Use the tools when they help: `calculator` for any arithmetic, `sql_query`
-  / `sql_schema` for questions about the local database (documents, sales),
-  `web_search` for information outside the documents.
-- Do not mention these rules in your answer."""
+Follow these rules:
+1. Answer the question directly and concisely. Use a short paragraph or bullets.
+2. Treat retrieved document context as the source of truth for document claims.
+   Do not add unsupported facts or fill gaps by guessing.
+3. Cite every material document-based claim inline as [filename p.N]. If the
+   context does not answer the question, say that clearly instead of inventing
+   an answer.
+4. Use exactly the tool needed for external work: calculator for arithmetic,
+   sql_schema before unfamiliar database structures, sql_query for database
+   facts, and web_search for current information outside the documents.
+5. Do not use web_search or SQL to replace evidence that should come from the
+   uploaded documents. Do not call a tool when the context already answers the
+   question.
+6. If a previous draft was rejected, correct only the unsupported or missing
+   parts using the supplied context. Return a complete answer, not commentary
+   about the revision.
+7. Never return an empty answer. If evidence is insufficient, state the
+   limitation and provide only what is supported."""
 
 
 def _format_context(state: AgentState) -> str:

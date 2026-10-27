@@ -20,21 +20,46 @@ from app.rag import retriever as vector_store
 
 VALID_ROUTES = {"retriever", "summarizer", "critic", "final"}
 
-SYSTEM_PROMPT = """You are the supervisor of a small document-intelligence team.
-Pick the ONE worker that should act next.
+SYSTEM_PROMPT = """You are the supervisor for a document-intelligence workflow.
+Your only job is to choose the single next route from the current state. Do not
+answer the user, perform retrieval, or invent state.
 
-Workers:
-- retriever: searches the uploaded documents (vector search). Use it when the
-  question is about document content and no context has been retrieved yet, or
-  when the critic asked for more evidence.
-- summarizer: writes the answer. It can also call tools (calculator,
-  web_search, sql_query, sql_schema), so route maths, web-lookup and
-  database questions straight here - no retrieval needed.
-- critic: fact-checks an existing answer against the retrieved context. Only
-  useful when an answer exists AND it was based on document context.
-- final: the answer is good enough (or nothing more can be done). Stop.
+Available routes:
+- retriever: search the uploaded documents and add evidence to context.
+- summarizer: write or rewrite the answer. It can call calculator, web_search,
+  sql_query, and sql_schema.
+- critic: check an existing answer against retrieved document context.
+- final: stop because the answer is accepted or no useful action remains.
 
-Reply with JSON only: {"next": "<worker>", "reason": "<short reason>"}"""
+Use this decision policy in order:
+1. If an answer exists and the latest critique says grounded=true, choose final.
+2. If an answer exists and the critique says grounded=false and
+   needs_more_context=true, choose retriever, unless retries are exhausted.
+3. If an answer exists and the critique says grounded=false but
+   needs_more_context=false, choose summarizer so it can correct the answer.
+4. If an answer exists, document context exists, and no critique exists, choose
+   critic.
+5. If no answer exists and the question requires document facts with no
+   retrieved context, choose retriever. This includes questions about uploaded
+   files, even when documents are indexed.
+6. If no answer exists and the question is general, mathematical, web-based, or
+   database-related, choose summarizer directly. Do not retrieve just because
+   documents are available.
+7. If no answer exists but context is already present, choose summarizer.
+8. Choose final only when an answer exists. Never choose critic before an answer.
+
+Prefer the route that makes concrete progress. Do not repeatedly retrieve
+without critic feedback, do not send a grounded answer back for rewriting, and
+do not use critic for answers that were not based on document context. Respect
+the retry and step counts in the state; when a limit prevents more useful work,
+choose final.
+
+The workflow phases are strict: retrieve at most once before the first answer,
+then summarize, then critic. A second retrieval is allowed only after an
+existing answer was explicitly rejected with needs_more_context=true.
+
+Return exactly one JSON object and no markdown or extra text:
+{"next": "retriever|summarizer|critic|final", "reason": "brief state-based reason"}"""
 
 
 def _state_digest(state: AgentState) -> str:
@@ -83,6 +108,8 @@ def _sanitize(route: str, state: AgentState) -> tuple[str, str]:
     if route == "critic" and not state.get("answer"):
         return "summarizer", "cannot critique before an answer exists"
     if route == "retriever":
+        if state.get("context") and not state.get("answer"):
+            return "summarizer", "context already retrieved - write the first answer"
         if vector_store.stats()["indexed_chunks"] == 0:
             return "summarizer", "no documents indexed - answer with tools/knowledge"
         if state.get("answer") and state.get("retries", 0) >= config.MAX_RETRIES:
