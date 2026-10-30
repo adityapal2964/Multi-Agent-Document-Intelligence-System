@@ -17,14 +17,14 @@ from app import config
 @lru_cache(maxsize=2)
 def get_llm(temperature: float | None = None) -> Any | None:
     """Return a ChatOpenAI instance, or None when no API key is configured."""
-    if not config.llm_enabled():
+    if not config.llm_configured():
         return None
     try:
         from langchain_openai import ChatOpenAI
 
         kwargs: dict[str, Any] = {
             "model": config.LLM_MODEL,
-            "api_key": config.OPENAI_API_KEY,
+            "api_key": config.OPENAI_API_KEY or "not-needed",
             "temperature": config.LLM_TEMPERATURE if temperature is None else temperature,
             "timeout": 60,
             "max_retries": 1,

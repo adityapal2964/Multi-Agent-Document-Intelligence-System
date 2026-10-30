@@ -1,6 +1,6 @@
 """Embeddings provider.
 
-Primary:  OpenAI embeddings (when OPENAI_API_KEY is set).
+Primary:  OpenAI embeddings (when an OpenAI key or compatible base URL is set).
 Fallback: a small deterministic hashing embedding implemented here, so the
 project - and its tests - work offline with no API key at all.  The fallback
 is lexical, not semantic: good enough for demos, not for production.
@@ -56,13 +56,13 @@ def _using_openai_directly() -> bool:
 @lru_cache(maxsize=1)
 def get_embeddings() -> Any:
     """Return the embedding model used for ingestion and retrieval."""
-    if config.llm_enabled():
+    if config.llm_configured():
         try:
             from langchain_openai import OpenAIEmbeddings
 
             kwargs: dict[str, Any] = {
                 "model": config.EMBEDDING_MODEL,
-                "api_key": config.OPENAI_API_KEY,
+                "api_key": config.OPENAI_API_KEY or "not-needed",
             }
             if config.OPENAI_BASE_URL:
                 kwargs["base_url"] = config.OPENAI_BASE_URL
@@ -81,6 +81,6 @@ def get_embeddings() -> Any:
 
 def embeddings_backend() -> str:
     """Name of the active backend - surfaced by /health."""
-    if not config.llm_enabled():
+    if not config.llm_configured():
         return "hashing-fallback"
     return "openai" if _using_openai_directly() else "openai-compatible"

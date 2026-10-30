@@ -7,7 +7,6 @@ It only talks to the FastAPI backend over HTTP - no agent logic lives here.
 from __future__ import annotations
 
 import os
-from typing import Any
 
 import requests
 import streamlit as st
@@ -18,26 +17,8 @@ TIMEOUT = 180
 st.set_page_config(page_title="DocuAgent", page_icon="📄", layout="wide")
 
 
-def api_get(path: str) -> requests.Response:
+def api_get(path: str):
     return requests.get(f"{BACKEND_URL}{path}", timeout=TIMEOUT)
-
-
-def error_detail(response: requests.Response) -> str:
-    """Return FastAPI's detail message when available."""
-    try:
-        payload = response.json()
-    except ValueError:
-        return response.text or f"Request failed with status {response.status_code}."
-    return str(payload.get("detail", payload))
-
-
-def load_documents() -> list[dict[str, Any]]:
-    response = api_get("/documents")
-    response.raise_for_status()
-    documents = response.json()
-    if not isinstance(documents, list):
-        raise ValueError("Backend returned an invalid documents response.")
-    return documents
 
 
 # --------------------------------------------------------------------------
@@ -74,41 +55,21 @@ with st.sidebar:
                     timeout=TIMEOUT,
                 )
                 if response.status_code == 200:
-                    payload = response.json()
-                    document = payload["document"]
-                    st.success(payload["message"])
-                    st.caption(
-                        f"Indexed **{document['filename']}** "
-                        f"({document['num_chunks']} chunks, {document['num_pages']} page(s))."
-                    )
-                    st.rerun()
+                    st.success(response.json()["message"])
                 else:
-                    st.error(error_detail(response))
+                    st.error(response.json().get("detail", response.text))
             except Exception as exc:
                 st.error(f"Upload failed: {exc}")
 
     st.subheader("Indexed documents")
     try:
-        documents = load_documents()
+        documents = api_get("/documents").json()
         if not documents:
             st.info("No documents yet.")
-        document_options = {
-            "All indexed documents": None,
-            **{
-                f"{document['filename']} ({document['num_chunks']} chunks)": document["id"]
-                for document in documents
-            },
-        }
-        selected_document = st.selectbox(
-            "Search scope",
-            options=list(document_options),
-            help="Restrict retrieval to one uploaded document, or search all documents.",
-        )
-        st.session_state.selected_document_id = document_options[selected_document]
         for document in documents:
-            st.caption(
-                f"**{document['filename']}** · {document['num_chunks']} chunks · "
-                f"{document['num_pages']} page(s) · {document['status']}"
+            st.write(
+                f"• **{document['filename']}** — {document['num_chunks']} chunks, "
+                f"{document['num_pages']} page(s)"
             )
     except Exception as exc:
         st.error(f"Could not load documents: {exc}")
@@ -157,19 +118,10 @@ if prompt := st.chat_input("Ask something about your documents, maths, the web o
         with st.spinner("Agents working..."):
             try:
                 response = requests.post(
-                    f"{BACKEND_URL}/chat",
-                    json={
-                        "query": prompt,
-                        "document_id": st.session_state.get("selected_document_id"),
-                    },
-                    timeout=TIMEOUT,
+                    f"{BACKEND_URL}/chat", json={"query": prompt}, timeout=TIMEOUT
                 )
-                if response.status_code >= 400:
-                    payload = {}
-                    answer = error_detail(response)
-                else:
-                    payload = response.json()
-                    answer = payload.get("answer") or "No answer returned."
+                payload = response.json()
+                answer = payload.get("answer") or payload.get("detail", "No answer returned.")
             except Exception as exc:
                 payload, answer = {}, f"Request failed: {exc}"
         st.markdown(answer)

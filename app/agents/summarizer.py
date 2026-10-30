@@ -49,13 +49,13 @@ def _format_context(state: AgentState) -> str:
 
 
 def _fallback_answer(state: AgentState) -> str:
-    """Extractive answer used when no LLM API key is configured."""
+    """Extractive answer used when no LLM is configured."""
     chunks = state.get("context") or []
     if not chunks:
         return (
-            "No LLM API key is configured and no document context was retrieved, "
-            "so I cannot answer this question. Set OPENAI_API_KEY in your .env "
-            "file (and upload a PDF) to enable full agent behaviour."
+            "No LLM is configured and no document context was retrieved, "
+            "so I cannot answer this question. Configure an LLM key or compatible "
+            "base URL in your .env file (and upload a PDF) to enable full agent behaviour."
         )
     lines = ["(LLM not configured - returning the most relevant document extracts)"]
     for chunk in chunks[:3]:
@@ -122,7 +122,7 @@ def summarizer_agent(state: AgentState) -> dict:
     except Exception as exc:
         return {
             "answer": f"The language model call failed ({exc}). "
-                      f"Check your OPENAI_API_KEY / model name and try again.",
+                      "Check your LLM key, base URL, and model name and try again.",
             "critique": {},
             "agent_trace": ["summarizer (LLM error)"],
         }

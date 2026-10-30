@@ -27,7 +27,7 @@ def health() -> HealthResponse:
     """Liveness probe + a quick view of what is configured."""
     return HealthResponse(
         status="ok",
-        llm_configured=config.llm_enabled(),
+        llm_configured=config.llm_configured(),
         web_search_configured=config.web_search_enabled(),
         embeddings_backend=embeddings_backend(),
         indexed_chunks=vector_store.stats()["indexed_chunks"],

@@ -76,7 +76,18 @@ def test_summarizer_survives_llm_failure(monkeypatch):
 
     monkeypatch.setattr(summarizer, "get_llm", lambda *_a, **_k: Boom())
     update = summarizer.summarizer_agent(new_state("hello"))
-    assert "failed" in update["answer"].lower()
+    assert update["answer"] == (
+        "The language model call failed (rate limited). "
+        "Check your LLM key, base URL, and model name and try again."
+    )
+
+
+def test_summarizer_fallback_explains_missing_llm_configuration():
+    assert summarizer._fallback_answer(new_state("hello")) == (
+        "No LLM is configured and no document context was retrieved, "
+        "so I cannot answer this question. Configure an LLM key or compatible "
+        "base URL in your .env file (and upload a PDF) to enable full agent behaviour."
+    )
 
 
 def test_critic_parses_llm_verdict(monkeypatch):

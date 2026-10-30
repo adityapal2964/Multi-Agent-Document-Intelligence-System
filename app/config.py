@@ -59,11 +59,23 @@ MAX_TOOL_CALLS: int = int(os.getenv("MAX_TOOL_CALLS", "3"))
 API_HOST: str = os.getenv("API_HOST", "127.0.0.1")
 API_PORT: int = int(os.getenv("API_PORT", "8000"))
 BACKEND_URL: str = os.getenv("BACKEND_URL", f"http://{API_HOST}:{API_PORT}")
+CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "*")
 
 
-def llm_enabled() -> bool:
-    """True when an LLM API key is configured."""
-    return bool(OPENAI_API_KEY)
+def llm_configured() -> bool:
+    """True when an LLM key or OpenAI-compatible endpoint is configured."""
+    override = os.getenv("LLM_ENABLED", "").strip().lower()
+    if override in {"true", "false"}:
+        return override == "true"
+    return bool(
+        os.getenv("OPENAI_API_KEY", "").strip()
+        or os.getenv("OPENAI_BASE_URL", "").strip()
+    )
+
+
+def cors_origins() -> list[str]:
+    """Return configured CORS origins, excluding blank entries."""
+    return [origin.strip() for origin in CORS_ORIGINS.split(",") if origin.strip()]
 
 
 def web_search_enabled() -> bool:

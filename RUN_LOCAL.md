@@ -83,6 +83,18 @@ OPENAI_BASE_URL=https://api.groq.com/openai/v1
 LLM_MODEL=llama-3.3-70b-versatile
 ```
 
+For Ollama, use the local OpenAI-compatible endpoint:
+
+```env
+OPENAI_BASE_URL=http://localhost:11434/v1
+LLM_MODEL=llama3.1:latest
+EMBEDDING_MODEL=nomic-embed-text
+```
+
+No placeholder API key is required for local OpenAI-compatible servers. If you
+change embedding provider or model, delete
+`data/vectorstore/faiss_index/` and re-upload documents.
+
 > **No key?** Everything still starts. The router falls back to a rule-based
 > state machine, embeddings fall back to a local hashing vectoriser, and the
 > summarizer returns document extracts instead of written answers. Good enough
@@ -133,7 +145,7 @@ curl http://127.0.0.1:8000/health
 
 ```json
 {"status":"ok","llm_configured":true,"web_search_configured":false,
- "embeddings_backend":"openai","indexed_chunks":0,"documents":0,"model":"gpt-4o-mini"}
+ "embeddings_backend":"openai-compatible","indexed_chunks":0,"documents":0,"model":"gpt-4o-mini"}
 ```
 
 Interactive API docs: <http://127.0.0.1:8000/docs>
@@ -206,7 +218,7 @@ Run the test suite (works without any API key):
 pytest -v
 ```
 
-Expected: **35 passed**.
+Expected: **40 passed**.
 
 ---
 
@@ -216,7 +228,7 @@ Expected: **35 passed**.
 |---|---|
 | `ModuleNotFoundError: No module named 'app'` | Run commands from the **project root** (where `app/` lives), with the venv active. |
 | Streamlit: *Backend unreachable* | Terminal 1 isn't running, or the port differs. Start uvicorn, or set `BACKEND_URL=http://127.0.0.1:<port>` in `.env`. |
-| `/health` shows `"llm_configured": false` | `.env` is missing, in the wrong directory, or `OPENAI_API_KEY` is blank. It must sit next to `app/`. Restart uvicorn after editing. |
+| `/health` shows `"llm_configured": false` | `.env` is missing, in the wrong directory, or both `OPENAI_API_KEY` and `OPENAI_BASE_URL` are blank. It must sit next to `app/`. Restart uvicorn after editing. |
 | Answers look like raw document extracts | Same cause — you're in fallback mode. Add a key and restart. |
 | `401 / invalid_api_key` in the answer text | Bad key, or the key doesn't match `OPENAI_BASE_URL`. |
 | `model_not_found` | `LLM_MODEL` isn't available on your account/provider. Try `gpt-4o-mini`. |

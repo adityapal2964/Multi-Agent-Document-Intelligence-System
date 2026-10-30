@@ -11,6 +11,8 @@ _TMP = Path(tempfile.mkdtemp(prefix="docuagent-tests-"))
 os.environ["DATA_DIR"] = str(_TMP)
 os.environ["SQLITE_PATH"] = str(_TMP / "test.db")
 os.environ["OPENAI_API_KEY"] = ""   # tests run in offline fallback mode
+os.environ["OPENAI_BASE_URL"] = ""
+os.environ["LLM_ENABLED"] = ""
 os.environ["TAVILY_API_KEY"] = ""   # tests run in offline fallback mode
 
 import pytest  # noqa: E402

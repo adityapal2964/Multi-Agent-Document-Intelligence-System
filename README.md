@@ -107,8 +107,8 @@ A deterministic sanitizer overrides invalid LLM decisions, so a small or unrelia
 | **SQL** | Read-only `SELECT`/`WITH` over SQLite (`documents`, `document_metadata`, `sales`), single statement only, 50-row limit, plus a schema tool |
 | **FastAPI** | `/health`, `/documents/upload`, `/documents`, `/chat`, with auto docs at `/docs` |
 | **Streamlit** | Backend status, upload, document list, search-scope selector (all documents or one), chat with agent trace, tools used, fact-check panel and sources |
-| **Offline fallback** | With no API key: hashing embeddings, rule-based routing, extractive answers, lexical critic |
-| **Tests** | 36 pytest tests that run offline |
+| **Offline fallback** | With no key or compatible base URL: hashing embeddings, rule-based routing, extractive answers, lexical critic |
+| **Tests** | 40 pytest tests that run offline |
 
 ---
 
@@ -161,7 +161,7 @@ Multi-Agent-Document-Intelligence-System/
 ├── frontend/streamlit_app.py  # the whole UI (HTTP client only, no agent logic)
 ├── scripts/create_sample_pdf.py
 ├── data/{documents,database,vectorstore}/   # runtime data, git-ignored
-├── tests/                     # agents, graph, API, RAG, tools (36 tests, offline)
+├── tests/                     # agents, graph, API, RAG, tools (40 tests, offline)
 ├── .env.example  requirements.txt  pytest.ini  README.md  RUN_LOCAL.md
 ```
 
@@ -295,11 +295,13 @@ All settings are environment variables, centralized in `app/config.py`.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `OPENAI_API_KEY` | *(empty)* | Enables the LLM and API embeddings. Empty means offline fallback mode |
+| `OPENAI_API_KEY` | *(empty)* | Enables the LLM and API embeddings when set; a compatible base URL also enables them |
 | `OPENAI_BASE_URL` | *(OpenAI)* | Point at any OpenAI-compatible endpoint |
 | `LLM_MODEL` | `gpt-4o-mini` | Chat model name |
-| `LLM_TEMPERATURE` | see `config.py` | Sampling temperature |
-| `EMBEDDING_MODEL` | see `config.py` | Embedding model name |
+| `LLM_TEMPERATURE` | `0` | Sampling temperature |
+| `EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model name |
+| `LLM_ENABLED` | *(unset)* | Optional `true`/`false` override; otherwise auto-detects a key or base URL |
+| `CORS_ORIGINS` | `*` | Comma-separated allowed browser origins |
 | `TAVILY_API_KEY` | *(empty)* | Enables the `web_search` tool |
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | `1000` / `150` | Chunking |
 | `TOP_K` | `4` | Chunks retrieved (doubled on a retry) |
@@ -315,11 +317,14 @@ All settings are environment variables, centralized in `app/config.py`.
 Any OpenAI-compatible server works. Example `.env` for Ollama:
 
 ```env
-OPENAI_API_KEY=ollama                       # any non-empty value; the client requires one
 OPENAI_BASE_URL=http://localhost:11434/v1
 LLM_MODEL=llama3.1:latest
 EMBEDDING_MODEL=nomic-embed-text
 ```
+
+No placeholder API key is required for local OpenAI-compatible servers. If you
+change embedding provider or model, delete
+`data/vectorstore/faiss_index/` and re-upload documents.
 
 Pull the models first (`ollama pull llama3.1`, `ollama pull nomic-embed-text`). Smaller local models are less reliable at structured JSON routing and tool calling than hosted models, so expect to tune prompts or try a larger model. The supervisor's guards keep the graph terminating either way.
 
@@ -329,7 +334,7 @@ Pull the models first (`ollama pull llama3.1`, `ollama pull nomic-embed-text`). 
 pytest
 ```
 
-The 36 tests run with no API key and cover graph compilation, supervisor routing and loop prevention, the full document workflow, critic-triggered retry, simulated tool calling, calculator and SQL safety, API endpoints, and invalid uploads.
+The 40 tests run with no API key and cover graph compilation, supervisor routing and loop prevention, the full document workflow, critic-triggered retry, simulated tool calling, calculator and SQL safety, API endpoints, configuration, and invalid uploads.
 
 ---
 

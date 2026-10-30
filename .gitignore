@@ -8,6 +8,7 @@ env/
 .mypy_cache/
 .DS_Store
 *.egg-info/
+scripts/testJson.txt
 
 # local data (keep the folders, ignore the contents)
 data/documents/*
