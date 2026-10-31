@@ -161,7 +161,7 @@ Multi-Agent-Document-Intelligence-System/
 ├── frontend/streamlit_app.py  # the whole UI (HTTP client only, no agent logic)
 ├── scripts/create_sample_pdf.py
 ├── data/{documents,database,vectorstore}/   # runtime data, git-ignored
-├── tests/                     # agents, graph, API, RAG, tools (40 tests, offline)
+├── tests/                     # agents, graph, API, RAG, tools (48 tests, offline)
 ├── .env.example  requirements.txt  pytest.ini  README.md  RUN_LOCAL.md
 ```
 
@@ -244,7 +244,8 @@ Response:
   "embeddings_backend": "openai-compatible",
   "indexed_chunks": 12,
   "documents": 2,
-  "model": "gpt-4o-mini"
+  "model": "gpt-4o-mini",
+  "index_status": "ok"
 }
 ```
 
@@ -322,9 +323,10 @@ LLM_MODEL=llama3.1:latest
 EMBEDDING_MODEL=nomic-embed-text
 ```
 
-No placeholder API key is required for local OpenAI-compatible servers. If you
-change embedding provider or model, delete
-`data/vectorstore/faiss_index/` and re-upload documents.
+No placeholder API key is required for local OpenAI-compatible servers. If you change embedding provider or model, the API reports an index mismatch
+and returns HTTP 409 for document uploads and chat until you delete
+`data/vectorstore/` and re-upload documents. The active embedding fingerprint
+is stored in `data/vectorstore/index_meta.json`.
 
 Pull the models first (`ollama pull llama3.1`, `ollama pull nomic-embed-text`). Smaller local models are less reliable at structured JSON routing and tool calling than hosted models, so expect to tune prompts or try a larger model. The supervisor's guards keep the graph terminating either way.
 
@@ -334,15 +336,15 @@ Pull the models first (`ollama pull llama3.1`, `ollama pull nomic-embed-text`). 
 pytest
 ```
 
-The 40 tests run with no API key and cover graph compilation, supervisor routing and loop prevention, the full document workflow, critic-triggered retry, simulated tool calling, calculator and SQL safety, API endpoints, configuration, and invalid uploads.
+The 48 tests run with no API key and cover graph compilation, supervisor routing and loop prevention, the full document workflow, critic-triggered retry, simulated tool calling, calculator and SQL safety, API endpoints, configuration, and invalid uploads.
 
 ---
 
 ## Limitations
 
 **Retrieval**
-- **One global FAISS index.** `document_id` filters results *after* the top-k search, so a scoped query can return fewer than `k` chunks (or none) if other documents dominate the top results.
-- **No index management.** There is no document delete or re-index endpoint, and no check that the index matches the current embedding configuration.
+- **One global FAISS index.** Scoped searches push the `document_id` filter into FAISS, while unscoped searches cover all documents.
+- **No index management.** There is no document delete or re-index endpoint.
 - **Offline fallback is lexical, not semantic.** Hashing embeddings match words, not meaning, and the fallback critic is a word-overlap heuristic. They exist so the project runs without a key, not as a quality substitute.
 - **No OCR**, reranking or hybrid search.
 
@@ -366,15 +368,15 @@ The 40 tests run with no API key and cover graph compilation, supervisor routing
 
 ## Roadmap
 
-Not implemented yet. This is the intended direction, roughly in priority order.
+This is the intended direction, roughly in priority order.
 
 **Correctness**
-- Push the `document_id` filter into the FAISS search
-- Embedding fingerprint stored with the index, with mismatch detection
+- Push the `document_id` filter into the FAISS search ✅
+- Embedding fingerprint stored with the index, with mismatch detection ✅
 - Document delete and re-index endpoints
 - Structured output (JSON mode) for supervisor and critic
 - Conversation memory / `session_id`
-- Proper HTTP error codes from `/chat`
+- Proper HTTP error codes from `/chat` ✅
 
 **Security**
 - Authentication and per-user document isolation

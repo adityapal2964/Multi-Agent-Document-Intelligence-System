@@ -91,9 +91,9 @@ LLM_MODEL=llama3.1:latest
 EMBEDDING_MODEL=nomic-embed-text
 ```
 
-No placeholder API key is required for local OpenAI-compatible servers. If you
-change embedding provider or model, delete
-`data/vectorstore/faiss_index/` and re-upload documents.
+No placeholder API key is required for local OpenAI-compatible servers. If you change embedding provider or model, the API will detect the index
+mismatch. Delete `data/vectorstore/` and re-upload documents before querying
+again.
 
 > **No key?** Everything still starts. The router falls back to a rule-based
 > state machine, embeddings fall back to a local hashing vectoriser, and the
@@ -239,6 +239,7 @@ Expected: **40 passed**.
 | Port 8000/8501 already in use | `uvicorn app.main:app --port 8010` and `streamlit run ... --server.port 8511` (update `BACKEND_URL`). |
 | Retrieval returns nothing after re-upload | Delete `data/vectorstore/` and re-upload — the index is rebuilt from scratch. |
 | Stale/odd answers after switching LLM providers | Embeddings changed too. Delete `data/vectorstore/` and re-ingest your documents. |
+| Index mismatch / HTTP 409 on upload or chat | The persisted FAISS index was built with different embedding settings. Delete `data/vectorstore/` and re-upload your documents. |
 
 ---
 
