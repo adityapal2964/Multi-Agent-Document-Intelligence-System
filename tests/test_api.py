@@ -3,6 +3,8 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.api import routes
+from app.rag.retriever import IndexMismatchError
 
 client = TestClient(app)
 
@@ -14,6 +16,14 @@ def test_health_endpoint():
     assert payload["status"] == "ok"
     assert payload["llm_configured"] is False          # no key in tests
     assert payload["embeddings_backend"] == "hashing-fallback"
+    assert payload["index_status"] in {"empty", "ok", "mismatch"}
+
+
+def test_health_reports_index_mismatch(monkeypatch):
+    monkeypatch.setattr(routes.vector_store, "index_status", lambda: "mismatch")
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json()["index_status"] == "mismatch"
 
 
 def test_documents_endpoint_returns_list():
@@ -53,3 +63,20 @@ def test_upload_and_chat_roundtrip():
 
 def test_chat_rejects_empty_query():
     assert client.post("/chat", json={"query": ""}).status_code == 422
+
+
+def test_chat_returns_409_for_index_mismatch(monkeypatch):
+    def fail(*_args):
+        raise IndexMismatchError("Embedding index mismatch. Delete data/vectorstore/ and re-upload your documents.")
+
+    monkeypatch.setattr(routes, "run_query", fail)
+    response = client.post("/chat", json={"query": "hello"})
+    assert response.status_code == 409
+    assert "Delete data/vectorstore/" in response.json()["detail"]
+
+
+def test_chat_returns_500_for_unexpected_workflow_failure(monkeypatch):
+    monkeypatch.setattr(routes, "run_query", lambda *_args: (_ for _ in ()).throw(RuntimeError("secret")))
+    response = client.post("/chat", json={"query": "hello"})
+    assert response.status_code == 500
+    assert response.json()["detail"] == "The agent workflow failed. Check the server logs."

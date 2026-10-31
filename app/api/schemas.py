@@ -51,3 +51,4 @@ class HealthResponse(BaseModel):
     indexed_chunks: int
     documents: int
     model: str
+    index_status: str

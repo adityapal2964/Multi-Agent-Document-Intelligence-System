@@ -17,6 +17,7 @@ from app.graph.workflow import run_query
 from app.rag import retriever as vector_store
 from app.rag.embeddings import embeddings_backend
 from app.rag.ingestion import SUPPORTED_SUFFIXES, IngestionError, load_and_chunk
+from app.rag.retriever import IndexMismatchError
 
 router = APIRouter()
 MAX_UPLOAD_MB = 25
@@ -33,6 +34,7 @@ def health() -> HealthResponse:
         indexed_chunks=vector_store.stats()["indexed_chunks"],
         documents=len(db.list_documents()),
         model=config.LLM_MODEL,
+        index_status=vector_store.index_status(),
     )
 
 
@@ -72,6 +74,9 @@ async def upload_document(file: UploadFile = File(...)) -> UploadResponse:
     except IngestionError as exc:
         destination.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except IndexMismatchError as exc:
+        destination.unlink(missing_ok=True)
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except Exception as exc:
         destination.unlink(missing_ok=True)
         raise HTTPException(status_code=500, detail=f"Indexing failed: {exc}") from exc
@@ -106,5 +111,16 @@ def list_documents() -> list[DocumentInfo]:
 @router.post("/chat", response_model=ChatResponse, tags=["chat"])
 def chat(request: ChatRequest) -> ChatResponse:
     """Run a query through the multi-agent LangGraph workflow."""
-    result = run_query(request.query, request.document_id)
+    try:
+        result = run_query(request.query, request.document_id)
+    except IndexMismatchError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:
+        import logging
+
+        logging.getLogger(__name__).exception("Agent workflow failed")
+        raise HTTPException(
+            status_code=500,
+            detail="The agent workflow failed. Check the server logs.",
+        ) from exc
     return ChatResponse(**result)

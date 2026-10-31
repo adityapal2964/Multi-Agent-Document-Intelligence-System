@@ -37,6 +37,8 @@ with st.sidebar:
             f"**Embeddings:** `{health['embeddings_backend']}`  \n"
             f"**Indexed chunks:** {health['indexed_chunks']}"
         )
+        if health.get("index_status") == "mismatch":
+            st.warning("Index mismatch: delete data/vectorstore/ and re-upload your documents.")
         if not health["llm_configured"]:
             st.warning("No OPENAI_API_KEY set - agents run in limited fallback mode.")
     except Exception as exc:
@@ -62,10 +64,25 @@ with st.sidebar:
                 st.error(f"Upload failed: {exc}")
 
     st.subheader("Indexed documents")
+    selected_document_id = None
     try:
         documents = api_get("/documents").json()
         if not documents:
             st.info("No documents yet.")
+        else:
+            document_options = {
+                "All documents": None,
+                **{
+                    f"{document['filename']} ({document['id']})": document["id"]
+                    for document in documents
+                },
+            }
+            selected_document = st.selectbox(
+                "Search scope",
+                options=list(document_options),
+                help="Restrict document questions to one indexed document.",
+            )
+            selected_document_id = document_options[selected_document]
         for document in documents:
             st.write(
                 f"• **{document['filename']}** — {document['num_chunks']} chunks, "
@@ -118,7 +135,9 @@ if prompt := st.chat_input("Ask something about your documents, maths, the web o
         with st.spinner("Agents working..."):
             try:
                 response = requests.post(
-                    f"{BACKEND_URL}/chat", json={"query": prompt}, timeout=TIMEOUT
+                    f"{BACKEND_URL}/chat",
+                    json={"query": prompt, "document_id": selected_document_id},
+                    timeout=TIMEOUT,
                 )
                 payload = response.json()
                 answer = payload.get("answer") or payload.get("detail", "No answer returned.")

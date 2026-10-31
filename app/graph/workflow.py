@@ -10,6 +10,7 @@ Every worker returns to the supervisor, which decides what happens next.
 
 from __future__ import annotations
 
+import logging
 from functools import lru_cache
 from typing import Any
 
@@ -17,6 +18,9 @@ from langgraph.graph import END, START, StateGraph
 
 from app.agents import critic_agent, retriever_agent, summarizer_agent, supervisor_agent
 from app.graph.state import AgentState, new_state
+from app.rag.retriever import IndexMismatchError
+
+logger = logging.getLogger(__name__)
 
 
 def final_agent(state: AgentState) -> dict:
@@ -94,12 +98,11 @@ def run_query(query: str, document_id: str | None = None) -> dict[str, Any]:
 
     try:
         result = get_graph().invoke(new_state(query, document_id))
-    except Exception as exc:  # keep the API alive on unexpected agent failures
-        return {
-            "answer": f"The agent workflow failed: {exc}",
-            "agents_used": [], "sources": [], "tools_used": [],
-            "critique": {}, "retries": 0, "error": str(exc),
-        }
+    except IndexMismatchError:
+        raise
+    except Exception:
+        logger.exception("Agent workflow failed")
+        raise
 
     return {
         "answer": result.get("final_answer") or result.get("answer", ""),
